@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>미적분의 기본 정리 시뮬레이터 (Tablet)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Math.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <!-- Nerdamer (기호 적분용) -->
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/nerdamer.core.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Algebra.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Calculus.js"></script>
+    
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #F3F4F6;
+            color: #1F2937;
+            touch-action: pan-y;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .canvas-wrapper {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #E5E7EB;
+            overflow: hidden;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+
+        /* 가상 키패드 */
+        .keypad-btn {
+            background-color: #ffffff;
+            border: 1px solid #D1D5DB;
+            border-radius: 12px;
+            font-size: 1.25rem; font-weight: 700; color: #374151;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 56px; cursor: pointer; user-select: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.1s;
+        }
+        .keypad-btn:active { transform: scale(0.95); background-color: #E5E7EB; }
+        .keypad-btn.action { background-color: #DBEAFE; color: #1D4ED8; border-color: #BFDBFE; }
+        .keypad-btn.danger { background-color: #FEE2E2; color: #B91C1C; border-color: #FECACA; }
+        .keypad-btn.var { background-color: #F3E8FF; color: #7E22CE; border-color: #E9D5FF; font-style: italic; font-family: serif; font-size: 1.5rem; }
+
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent; margin: 12px 0;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 36px; width: 36px; border-radius: 50%;
+            background: currentColor; cursor: pointer; margin-top: -14px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 8px; cursor: pointer; background: #D1D5DB; border-radius: 4px;
+        }
+        input[type=range]:focus { outline: none; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+
+    <header class="w-full max-w-[1600px] mb-6 text-center">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 tracking-tight">미적분의 기본 정리 시뮬레이터</h1>
+        <p class="text-base md:text-lg text-gray-500">도형의 넓이가 어떻게 원시함수의 함숫값 차이로 계산되는지 확인해보세요.</p>
+    </header>
+
+    <main class="w-full max-w-[1600px] flex flex-col gap-8">
+        
+        <section class="bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                
+                <div class="flex flex-col gap-4">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl font-bold text-gray-700 italic">f(x) =</span>
+                        <input type="text" id="func-input" inputmode="none" value="0.5*x"
+                               class="w-full text-xl font-mono p-4 border-2 border-gray-300 rounded-2xl focus:border-blue-500 focus:outline-none bg-gray-50 text-center text-gray-800 font-semibold shadow-inner">
+                    </div>
+                    <div id="error-msg" class="text-red-500 text-sm font-bold hidden px-2">올바른 수식을 입력해주세요.</div>
+                    
+                    <div class="grid grid-cols-6 sm:grid-cols-8 gap-2" id="keypad">
+                        <div class="keypad-btn var" data-val="x">x</div>
+                        <div class="keypad-btn action font-mono" data-val="^">xⁿ</div>
+                        <div class="keypad-btn action" data-val="(">(</div>
+                        <div class="keypad-btn action" data-val=")">)</div>
+                        <div class="keypad-btn action" data-val="sin(">sin</div>
+                        <div class="keypad-btn action" data-val="cos(">cos</div>
+                        <div class="keypad-btn danger col-span-2" data-val="DEL">지우기</div>
+
+                        <div class="keypad-btn" data-val="7">7</div>
+                        <div class="keypad-btn" data-val="8">8</div>
+                        <div class="keypad-btn" data-val="9">9</div>
+                        <div class="keypad-btn action" data-val="/">/</div>
+                        <div class="keypad-btn" data-val="4">4</div>
+                        <div class="keypad-btn" data-val="5">5</div>
+                        <div class="keypad-btn" data-val="6">6</div>
+                        <div class="keypad-btn action" data-val="*">*</div>
+
+                        <div class="keypad-btn" data-val="1">1</div>
+                        <div class="keypad-btn" data-val="2">2</div>
+                        <div class="keypad-btn" data-val="3">3</div>
+                        <div class="keypad-btn action" data-val="-">-</div>
+                        <div class="keypad-btn" data-val="0">0</div>
+                        <div class="keypad-btn font-black" data-val=".">.</div>
+                        <div class="keypad-btn action" data-val="+">+</div>
+                        <div class="keypad-btn danger" data-val="AC">AC</div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-200 h-full justify-center">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-lg font-bold text-gray-700">적분 시작점 (a)</label>
+                            <span class="text-xl font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-lg shadow-sm" id="val-a">-4.00</span>
+                        </div>
+                        <input type="range" id="slider-a" class="text-blue-600" min="-5" max="5" step="0.1" value="-4">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-lg font-bold text-gray-700">적분 끝점 (b)</label>
+                            <span class="text-xl font-bold text-red-600 bg-red-100 px-3 py-1 rounded-lg shadow-sm" id="val-b">4.00</span>
+                        </div>
+                        <input type="range" id="slider-b" class="text-red-600" min="-5" max="5" step="0.1" value="4">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3개 캔버스 패널 -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="flex flex-col">
+                <div class="bg-white text-center py-3 rounded-t-2xl border border-b-0 border-gray-200">
+                    <h3 class="text-lg font-bold text-gray-800">① f(x) 넓이 (기하)</h3>
+                </div>
+                <div class="canvas-wrapper rounded-t-none border-t-0">
+                    <canvas id="canvas-f"></canvas>
+                </div>
+            </div>
+            
+            <div class="flex flex-col">
+                <div class="bg-white text-center py-3 rounded-t-2xl border border-b-0 border-gray-200">
+                    <h3 class="text-lg font-bold text-gray-800">② 넓이의 누적 S(x)</h3>
+                </div>
+                <div class="canvas-wrapper rounded-t-none border-t-0">
+                    <canvas id="canvas-s"></canvas>
+                </div>
+            </div>
+
+            <div class="flex flex-col">
+                <div class="bg-white text-center py-2 rounded-t-2xl border border-b-0 border-gray-200">
+                    <h3 class="text-lg font-bold text-gray-800">③ 부정적분 F(x) 위치</h3>
+                    <span id="fx-equation" class="text-sm font-bold text-purple-600 block mt-1">F(x) = 계산중...</span>
+                </div>
+                <div class="canvas-wrapper rounded-t-none border-t-0">
+                    <canvas id="canvas-F"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- 대시보드 -->
+        <section class="bg-white rounded-3xl shadow-md border-2 border-indigo-100 p-6 md:p-8 flex flex-col lg:flex-row items-center justify-between gap-6 mb-10">
+            <div class="flex-1 w-full bg-gray-50 rounded-2xl p-6 border border-gray-200 text-center">
+                <h4 class="text-base font-bold text-gray-500 mb-4">각 영역의 기하학적 넓이</h4>
+                <div class="flex justify-around items-center">
+                    <div class="flex flex-col">
+                        <span class="text-blue-600 font-bold mb-1">파란색 영역 (x축 위)</span>
+                        <span class="text-3xl font-black text-blue-700 font-mono" id="dash-pos">0.00</span>
+                    </div>
+                    <div class="w-px h-12 bg-gray-300 mx-2"></div>
+                    <div class="flex flex-col">
+                        <span class="text-red-500 font-bold mb-1">빨간색 영역 (x축 아래)</span>
+                        <span class="text-3xl font-black text-red-600 font-mono" id="dash-neg">0.00</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-3xl font-black text-gray-300 hidden lg:block">▶</div>
+            
+            <div class="flex-1 w-full bg-indigo-50 rounded-2xl p-6 border border-indigo-200 text-center relative">
+                <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-sm">
+                    완벽 일치
+                </div>
+                <h4 class="text-base font-bold text-indigo-800 mb-4 mt-2">최종 정적분 값 S(b) = F(b) - F(a)</h4>
+                <div class="text-5xl font-black text-indigo-700 font-mono" id="dash-integral">0.00</div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const inputFunc = document.getElementById('func-input');
+        const keypadBtns = document.querySelectorAll('.keypad-btn');
+        const sliderA = document.getElementById('slider-a');
+        const sliderB = document.getElementById('slider-b');
+        
+        const valA = document.getElementById('val-a');
+        const valB = document.getElementById('val-b');
+        const dashPos = document.getElementById('dash-pos');
+        const dashNeg = document.getElementById('dash-neg');
+        const dashIntegral = document.getElementById('dash-integral');
+        const errorMsg = document.getElementById('error-msg');
+        const fxEquation = document.getElementById('fx-equation');
+
+        const canvasF = document.getElementById('canvas-f');
+        const canvasS = document.getElementById('canvas-s');
+        const canvasBigF = document.getElementById('canvas-F');
+        
+        let compiledFunc = null;
+        
+        const MIN_X = -5;
+        const MAX_X = 5;
+        const DT = 0.05; 
+        let boundY = 10; 
+
+        // --- 가상 키패드 로직 ---
+        function handleKeypadPress(e) {
+            e.preventDefault(); 
+            const val = this.getAttribute('data-val');
+            let start = inputFunc.selectionStart;
+            let end = inputFunc.selectionEnd;
+            let currentVal = inputFunc.value;
+
+            if (val === 'AC') {
+                inputFunc.value = '';
+                inputFunc.selectionStart = 0; inputFunc.selectionEnd = 0;
+            } else if (val === 'DEL') {
+                if (start === end && start > 0) {
+                    inputFunc.value = currentVal.substring(0, start - 1) + currentVal.substring(start);
+                    inputFunc.selectionStart = start - 1; inputFunc.selectionEnd = start - 1;
+                } else if (start !== end) {
+                    inputFunc.value = currentVal.substring(0, start) + currentVal.substring(end);
+                    inputFunc.selectionStart = start; inputFunc.selectionEnd = start;
+                }
+            } else {
+                inputFunc.value = currentVal.substring(0, start) + val + currentVal.substring(end);
+                inputFunc.selectionStart = start + val.length;
+                inputFunc.selectionEnd = start + val.length;
+            }
+            inputFunc.focus();
+            compileAndRender();
+        }
+
+        keypadBtns.forEach(btn => {
+            btn.addEventListener('mousedown', handleKeypadPress);
+            btn.addEventListener('touchstart', handleKeypadPress, { passive: false });
+        });
+        inputFunc.addEventListener('input', compileAndRender);
+
+        // --- Math Evaluation and Integration ---
+        function compileAndRender() {
+            try {
+                let expr = inputFunc.value || '0';
+                compiledFunc = math.compile(expr);
+                compiledFunc.evaluate({x: 0}); 
+                errorMsg.classList.add('hidden');
+                inputFunc.classList.remove('border-red-500');
+
+                try {
+                    if (typeof nerdamer !== 'undefined') {
+                        let f_expr = nerdamer(`integrate(${expr}, x)`).toString();
+                        fxEquation.textContent = `F(x) = ${f_expr}`;
+                    }
+                } catch (err) {
+                    fxEquation.textContent = `F(x) = 식 분석 불가`;
+                }
+                
+                calculateYBounds();
+                renderAll(); 
+            } catch (err) {
+                errorMsg.classList.remove('hidden');
+                inputFunc.classList.add('border-red-500');
+                fxEquation.textContent = `F(x) = 입력 오류`;
+            }
+        }
+
+        function f(t) {
+            try { 
+                let val = compiledFunc.evaluate({x: t}); 
+                return isFinite(val) ? val : 0;
+            } catch { return 0; }
+        }
+
+        // [버그 수정] 정적분을 오차 없이 수행하기 위해 균등 분할
+        function getF(x) {
+            if (x === 0) return 0;
+            const steps = Math.ceil(Math.abs(x) / DT);
+            const dx = x / steps; // Float error 방지를 위한 절대적 dx 할당
+            let sum = 0;
+            for (let i = 0; i < steps; i++) {
+                sum += (f(i * dx) + f((i + 1) * dx)) / 2 * dx;
+            }
+            return sum;
+        }
+
+        function getS(x, a) {
+            return getF(x) - getF(a);
+        }
+
+        function calculateYBounds() {
+            let maxVal = 0;
+            let a = parseFloat(sliderA.value);
+            const steps = Math.ceil((MAX_X - MIN_X) / 0.2);
+            for (let i = 0; i <= steps; i++) {
+                let t = MIN_X + i * 0.2;
+                maxVal = Math.max(maxVal, Math.abs(f(t)), Math.abs(getF(t)), Math.abs(getS(t, a)));
+            }
+            boundY = Math.max(5, maxVal * 1.2); 
+        }
+
+        // --- High-DPI Canvas Rendering System ---
+        function setupHighDPICanvas(canvas) {
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            
+            const wrapper = canvas.parentElement;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            
+            ctx.scale(dpr, dpr);
+            return { ctx, width: w, height: h };
+        }
+
+        function getMapFuncs(width, height) {
+            const mapX = (x) => ((x - MIN_X) / (MAX_X - MIN_X)) * width;
+            const mapY = (y) => height / 2 - (y / boundY) * (height / 2);
+            return { mapX, mapY };
+        }
+
+        function drawAxes(ctx, width, height, mapX, mapY) {
+            ctx.clearRect(0, 0, width, height);
+            
+            ctx.strokeStyle = '#F3F4F6'; ctx.lineWidth = 1; ctx.beginPath();
+            for (let i = MIN_X; i <= MAX_X; i++) { ctx.moveTo(mapX(i), 0); ctx.lineTo(mapX(i), height); }
+            
+            let yStep = boundY > 50 ? 20 : (boundY > 20 ? 10 : 5);
+            for (let i = 0; i <= boundY; i += yStep) {
+                ctx.moveTo(0, mapY(i)); ctx.lineTo(width, mapY(i));
+                ctx.moveTo(0, mapY(-i)); ctx.lineTo(width, mapY(-i));
+            }
+            ctx.stroke();
+
+            ctx.strokeStyle = '#4B5563'; ctx.lineWidth = 2; ctx.beginPath();
+            ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2);
+            ctx.moveTo(width / 2, 0); ctx.lineTo(width / 2, height);
+            ctx.stroke();
+
+            ctx.fillStyle = '#9CA3AF'; ctx.font = '14px Pretendard';
+            ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+            ctx.fillText('0', width / 2 - 8, height / 2 + 8);
+        }
+
+        // --- [버그 수정 완벽 디버깅] 넓이 계산 패널 1 ---
+        function drawPanel1(a, b) {
+            const { ctx, width, height } = setupHighDPICanvas(canvasF);
+            const { mapX, mapY } = getMapFuncs(width, height);
+            drawAxes(ctx, width, height, mapX, mapY);
+
+            const startT = Math.min(a, b);
+            const endT = Math.max(a, b);
+            
+            let posArea = 0, negArea = 0;
+            let peakPosY = 0, peakPosX = startT;
+            let peakNegY = 0, peakNegX = startT;
+
+            if (startT !== endT) {
+                // 부동소수점 오차 차단을 위해 정수 개수(steps)로 분할 제어
+                const steps = Math.ceil((endT - startT) / DT);
+                const dx = (endT - startT) / steps; // 절대적으로 균등한 dx 확보
+
+                for (let i = 0; i < steps; i++) {
+                    const t = startT + i * dx;
+                    const tNext = startT + (i + 1) * dx;
+                    const y1 = f(t), y2 = f(tNext);
+                    
+                    // x축을 뚫고 지나가는 경우 (부호가 다를 때)
+                    if (y1 * y2 < 0) {
+                        const root = t - y1 * dx / (y2 - y1); // 비례식으로 x절편 정확히 획득
+                        const a1 = Math.abs(y1) * (root - t) / 2;
+                        const a2 = Math.abs(y2) * (tNext - root) / 2;
+                        
+                        if (y1 > 0) { 
+                            posArea += a1; negArea += a2; 
+                            if (y1 > peakPosY) { peakPosY = y1; peakPosX = t; }
+                            if (y2 < peakNegY) { peakNegY = y2; peakNegX = tNext; }
+                        } else { 
+                            negArea += a1; posArea += a2; 
+                            if (y1 < peakNegY) { peakNegY = y1; peakNegX = t; }
+                            if (y2 > peakPosY) { peakPosY = y2; peakPosX = tNext; }
+                        }
+                    } else { // 같은 부호일 때 사다리꼴 넓이
+                        const sliceArea = Math.abs(y1 + y2) / 2 * dx;
+                        if (y1 >= 0 || y2 >= 0) {
+                            posArea += sliceArea;
+                            const maxY = Math.max(y1, y2);
+                            if (maxY > peakPosY) { peakPosY = maxY; peakPosX = y1 > y2 ? t : tNext; }
+                        } else {
+                            negArea += sliceArea;
+                            const minY = Math.min(y1, y2);
+                            if (minY < peakNegY) { peakNegY = minY; peakNegX = y1 < y2 ? t : tNext; }
+                        }
+                    }
+
+                    // 색칠하기
+                    const avgY = (y1 + y2) / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(mapX(t), mapY(0));
+                    ctx.lineTo(mapX(t), mapY(y1));
+                    ctx.lineTo(mapX(tNext), mapY(y2));
+                    ctx.lineTo(mapX(tNext), mapY(0));
+                    ctx.closePath();
+                    
+                    ctx.fillStyle = avgY >= 0 ? 'rgba(59, 130, 246, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+                    ctx.fill();
+                }
+            }
+
+            // 대시보드 강제 일치 연동
+            dashPos.textContent = posArea.toFixed(2);
+            dashNeg.textContent = negArea.toFixed(2);
+
+            // [오류 수정] 함수 선 그릴 때도 정수 분할 적용
+            ctx.beginPath(); ctx.strokeStyle = '#1F2937'; ctx.lineWidth = 3;
+            const curveSteps = Math.ceil((MAX_X - MIN_X) / DT);
+            for (let i = 0; i <= curveSteps; i++) {
+                const t = MIN_X + i * DT;
+                if (i === 0) ctx.moveTo(mapX(t), mapY(f(t)));
+                else ctx.lineTo(mapX(t), mapY(f(t)));
+            }
+            ctx.stroke();
+
+            ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+            ctx.beginPath(); ctx.strokeStyle = '#2563EB'; ctx.moveTo(mapX(a), 0); ctx.lineTo(mapX(a), height); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#DC2626'; ctx.moveTo(mapX(b), 0); ctx.lineTo(mapX(b), height); ctx.stroke();
+            ctx.setLineDash([]);
+            
+            ctx.fillStyle = '#2563EB'; ctx.font = 'bold 18px Pretendard'; ctx.fillText('a', mapX(a) - 6, height/2 - 15);
+            ctx.fillStyle = '#DC2626'; ctx.fillText('b', mapX(b) - 6, height/2 - 15);
+
+            const drawBadge = (text, cx, cy, color, bg) => {
+                ctx.font = 'bold 15px Pretendard';
+                const tw = ctx.measureText(text).width;
+                const rectW = tw + 16, rectH = 26;
+                let bx = cx - rectW/2;
+                if (bx < 5) bx = 5; if (bx + rectW > width - 5) bx = width - rectW - 5;
+                let by = cy - rectH/2;
+                
+                ctx.fillStyle = bg; ctx.strokeStyle = color; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.roundRect(bx, by, rectW, rectH, 6); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(text, bx + rectW/2, by + rectH/2 + 1);
+            };
+
+            if (posArea > 0.01) {
+                drawBadge(`${posArea.toFixed(2)}`, mapX(peakPosX), mapY(peakPosY / 2), '#1D4ED8', 'rgba(255,255,255,0.9)');
+            }
+            if (negArea > 0.01) {
+                drawBadge(`${negArea.toFixed(2)}`, mapX(peakNegX), mapY(peakNegY / 2), '#B91C1C', 'rgba(255,255,255,0.9)');
+            }
+        }
+
+        // --- Drawing Panel 2 (Accumulation)... ---
+        function drawPanel2(a, b) {
+            const { ctx, width, height } = setupHighDPICanvas(canvasS);
+            const { mapX, mapY } = getMapFuncs(width, height);
+            drawAxes(ctx, width, height, mapX, mapY);
+
+            ctx.beginPath(); ctx.strokeStyle = '#059669'; ctx.lineWidth = 3;
+            const steps = Math.ceil((MAX_X - MIN_X) / DT);
+            for (let i = 0; i <= steps; i++) {
+                const t = MIN_X + i * DT;
+                if (i === 0) ctx.moveTo(mapX(t), mapY(getS(t, a)));
+                else ctx.lineTo(mapX(t), mapY(getS(t, a)));
+            }
+            ctx.stroke();
+
+            const Sb = getS(b, a);
+
+            if (Math.abs(Sb) > 0.01) {
+                ctx.beginPath(); ctx.strokeStyle = '#EF4444'; ctx.lineWidth = 3;
+                ctx.moveTo(mapX(b), mapY(0)); ctx.lineTo(mapX(b), mapY(Sb));
+                ctx.stroke();
+                
+                const dir = Sb > 0 ? 10 : -10;
+                ctx.beginPath(); ctx.fillStyle = '#EF4444';
+                ctx.moveTo(mapX(b), mapY(Sb));
+                ctx.lineTo(mapX(b) - 6, mapY(Sb) + dir);
+                ctx.lineTo(mapX(b) + 6, mapY(Sb) + dir);
+                ctx.fill();
+            }
+
+            ctx.beginPath(); ctx.fillStyle = '#2563EB'; ctx.arc(mapX(a), mapY(0), 7, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.fillStyle = '#059669'; ctx.arc(mapX(b), mapY(Sb), 7, 0, Math.PI*2); ctx.fill();
+
+            const text = `S(b)=${Sb.toFixed(2)}`;
+            ctx.font = 'bold 16px Pretendard';
+            const tw = ctx.measureText(text).width;
+            let tx = mapX(b) > width / 2 ? mapX(b) - tw - 12 : mapX(b) + 12;
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(tx - 4, mapY(Sb) - 12, tw + 8, 24);
+            ctx.fillStyle = '#047857'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, tx, mapY(Sb));
+        }
+
+        // --- Drawing Panel 3 (Antiderivative)... ---
+        function drawPanel3(a, b) {
+            const { ctx, width, height } = setupHighDPICanvas(canvasBigF);
+            const { mapX, mapY } = getMapFuncs(width, height);
+            drawAxes(ctx, width, height, mapX, mapY);
+
+            ctx.beginPath(); ctx.strokeStyle = '#7C3AED'; ctx.lineWidth = 3;
+            const steps = Math.ceil((MAX_X - MIN_X) / DT);
+            for (let i = 0; i <= steps; i++) {
+                const t = MIN_X + i * DT;
+                if (i === 0) ctx.moveTo(mapX(t), mapY(getF(t)));
+                else ctx.lineTo(mapX(t), mapY(getF(t)));
+            }
+            ctx.stroke();
+
+            const Fa = getF(a);
+            const Fb = getF(b);
+
+            ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+            ctx.beginPath(); ctx.strokeStyle = '#2563EB';
+            ctx.moveTo(mapX(a), mapY(Fa)); ctx.lineTo(mapX(0), mapY(Fa)); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#DC2626';
+            ctx.moveTo(mapX(b), mapY(Fb)); ctx.lineTo(mapX(0), mapY(Fb)); ctx.stroke();
+            
+            ctx.beginPath(); ctx.strokeStyle = '#9CA3AF';
+            ctx.moveTo(mapX(a), mapY(Fa)); ctx.lineTo(mapX(b), mapY(Fa)); ctx.stroke();
+            ctx.setLineDash([]);
+            
+            ctx.beginPath(); ctx.strokeStyle = '#EA580C'; ctx.lineWidth = 3;
+            ctx.moveTo(mapX(b), mapY(Fa)); ctx.lineTo(mapX(b), mapY(Fb)); ctx.stroke();
+
+            ctx.beginPath(); ctx.fillStyle = '#2563EB'; ctx.arc(mapX(a), mapY(Fa), 7, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.fillStyle = '#DC2626'; ctx.arc(mapX(b), mapY(Fb), 7, 0, Math.PI*2); ctx.fill();
+
+            ctx.font = 'bold 15px Pretendard';
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(mapX(0) + 6, mapY(Fa) - 12, 45, 24);
+            ctx.fillStyle = '#2563EB'; ctx.fillText('F(a)', mapX(0) + 8, mapY(Fa));
+
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(mapX(0) + 6, mapY(Fb) - 12, 45, 24);
+            ctx.fillStyle = '#DC2626'; ctx.fillText('F(b)', mapX(0) + 8, mapY(Fb));
+
+            const diffText = `F(b)-F(a)=${(Fb-Fa).toFixed(2)}`;
+            const dtw = ctx.measureText(diffText).width;
+            let dtx = mapX(b) < width/2 ? mapX(b) + 8 : mapX(b) - dtw - 8;
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(dtx - 4, mapY((Fa+Fb)/2) - 12, dtw + 8, 24);
+            ctx.fillStyle = '#C2410C'; ctx.fillText(diffText, dtx, mapY((Fa+Fb)/2));
+        }
+
+        // --- Final Assembly & Event Bindings... ---
+        function renderAll() {
+            if (!compiledFunc) return;
+            calculateYBounds();
+            
+            const a = parseFloat(sliderA.value);
+            const b = parseFloat(sliderB.value);
+            
+            valA.textContent = a.toFixed(1);
+            valB.textContent = b.toFixed(1);
+
+            const integralValue = getF(b) - getF(a); 
+            dashIntegral.textContent = integralValue.toFixed(2);
+
+            drawPanel1(a, b);
+            drawPanel2(a, b);
+            drawPanel3(a, b);
+        }
+
+        sliderA.addEventListener('input', renderAll);
+        sliderB.addEventListener('input', renderAll);
+        window.addEventListener('resize', renderAll);
+
+        compileAndRender();
+    </script>
+</body>
+</html>
